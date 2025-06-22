@@ -269,7 +269,7 @@ public struct DragulaView<Card: View, DropView: View, Item: DragulaItem>: View {
 
 /// A reusable SwiftUI view that supports drag-and-drop reordering of items in a grid layout.
 ///
-/// This view arranges items in a grid with a maximum of 2 items per row, supporting drag-and-drop reordering.
+/// This view arranges items in a customizable grid layout, supporting drag-and-drop reordering.
 ///
 /// - Parameters:
 ///   - Card: The draggable item view.
@@ -278,7 +278,11 @@ public struct DragulaView<Card: View, DropView: View, Item: DragulaItem>: View {
 ///
 /// - Example:
 /// ```swift
-/// DragulaGridView(items: $photos) { item in
+/// DragulaGridView(items: $photos, columns: [
+///     GridItem(.flexible(), spacing: 8),
+///     GridItem(.flexible(), spacing: 8),
+///     GridItem(.flexible(), spacing: 8)
+/// ]) { item in
 ///     AsyncImage(url: item.url) { image in
 ///         image.resizable().aspectRatio(contentMode: .fill)
 ///     } placeholder: {
@@ -299,6 +303,7 @@ public struct DragulaGridView<Card: View, DropView: View, Item: DragulaItem>: Vi
     @State private var draggedItems: [Item] = []
     
     @Binding var items: [Item]
+    private let columns: [GridItem]
     private let card: (Item) -> Card
     private let dropView: ((Item) -> DropView)?
     private let dropCompleted: () -> Void
@@ -308,26 +313,26 @@ public struct DragulaGridView<Card: View, DropView: View, Item: DragulaItem>: Vi
     /// Creates a drag-and-drop grid view for items.
     /// - Parameters:
     ///   - items: A binding to an array of items.
+    ///   - columns: Array of GridItem defining the grid layout.
     ///   - card: View builder for each item.
     ///   - dropView: View builder for the drop-over indicator.
     ///   - dropCompleted: Called when a drop completes.
     public init(
         items: Binding<[Item]>,
+        columns: [GridItem],
         @ViewBuilder card: @escaping (Item) -> Card,
         @ViewBuilder dropView: @escaping (Item) -> DropView,
         dropCompleted: @escaping () -> Void
     ) {
         self._items = items
+        self.columns = columns
         self.card = card
         self.dropView = dropView
         self.dropCompleted = dropCompleted
     }
     
     public var body: some View {
-        LazyVGrid(columns: [
-            GridItem(.flexible(), spacing: 8),
-            GridItem(.flexible(), spacing: 8)
-        ], spacing: 8) {
+        LazyVGrid(columns: columns, spacing: 8) {
             ForEach(items) { item in
                 #if os(watchOS)
                 card(item)
@@ -368,7 +373,7 @@ public struct DragulaGridView<Card: View, DropView: View, Item: DragulaItem>: Vi
 
 /// A reusable SwiftUI view that supports sectioned drag-and-drop reordering of items in a grid layout.
 ///
-/// Each section has a header and a grid of draggable items with a maximum of 2 items per row.
+/// Each section has a header and a customizable grid of draggable items.
 ///
 /// - Parameters:
 ///   - Header: A view shown as the section header.
@@ -378,7 +383,10 @@ public struct DragulaGridView<Card: View, DropView: View, Item: DragulaItem>: Vi
 ///
 /// - Example:
 /// ```swift
-/// DragulaSectionedGridView(sections: $sections) { section in
+/// DragulaSectionedGridView(sections: $sections, columns: [
+///     GridItem(.flexible(), spacing: 8),
+///     GridItem(.flexible(), spacing: 8)
+/// ]) { section in
 ///     Text(section.title)
 /// } card: { item in
 ///     AsyncImage(url: item.url) { image in
@@ -405,6 +413,7 @@ public struct DragulaSectionedGridView<Header: View,
     @Binding private var items: [Section.Item]
     @State private var draggedItems: [Section.Item] = []
     
+    private let columns: [GridItem]
     private let header: (Section) -> Header
     private let card: (Section.Item) -> Card
     private let dropView: ((Section.Item) -> DropView)?
@@ -415,12 +424,14 @@ public struct DragulaSectionedGridView<Header: View,
     /// Creates a sectioned grid drag-and-drop view.
     /// - Parameters:
     ///   - sections: A binding to an array of sections.
+    ///   - columns: Array of GridItem defining the grid layout.
     ///   - header: View builder for each section header.
     ///   - card: View builder for each item.
     ///   - dropView: View builder for the drop-over indicator.
     ///   - dropCompleted: Called when a drop completes.
     public init(
         sections: Binding<[Section]>,
+        columns: [GridItem],
         @ViewBuilder header: @escaping (Section) -> Header,
         @ViewBuilder card: @escaping (Section.Item) -> Card,
         @ViewBuilder dropView: @escaping (Section.Item) -> DropView,
@@ -428,6 +439,7 @@ public struct DragulaSectionedGridView<Header: View,
     ) {
         self._sections = sections
         self._items = .constant([])
+        self.columns = columns
         self.header = header
         self.card = card
         self.dropView = dropView
@@ -436,6 +448,7 @@ public struct DragulaSectionedGridView<Header: View,
     
     public init(
         items: Binding<[Section.Item]>,
+        columns: [GridItem],
         @ViewBuilder header: @escaping (Section) -> Header,
         @ViewBuilder card: @escaping (Section.Item) -> Card,
         @ViewBuilder dropView: @escaping (Section.Item) -> DropView,
@@ -443,6 +456,7 @@ public struct DragulaSectionedGridView<Header: View,
     ) {
         self._sections = .constant([])
         self._items = items
+        self.columns = columns
         self.header = header
         self.card = card
         self.dropView = dropView
@@ -466,10 +480,7 @@ public struct DragulaSectionedGridView<Header: View,
                 )
             #endif
             
-            LazyVGrid(columns: [
-                GridItem(.flexible(), spacing: 8),
-                GridItem(.flexible(), spacing: 8)
-            ], spacing: 8) {
+            LazyVGrid(columns: columns, spacing: 8) {
                 ForEach(section.items) { item in
                     #if os(watchOS)
                     card(item)
