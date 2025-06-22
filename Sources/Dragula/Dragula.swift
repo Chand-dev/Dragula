@@ -267,6 +267,249 @@ public struct DragulaView<Card: View, DropView: View, Item: DragulaItem>: View {
     }
 }
 
+/// A reusable SwiftUI view that supports drag-and-drop reordering of items in a grid layout.
+///
+/// This view arranges items in a grid with a maximum of 2 items per row, supporting drag-and-drop reordering.
+///
+/// - Parameters:
+///   - Card: The draggable item view.
+///   - DropView: A view to show during a drag-over state.
+///   - Item: The item type conforming to `DragulaItem`.
+///
+/// - Example:
+/// ```swift
+/// DragulaGridView(items: $photos) { item in
+///     AsyncImage(url: item.url) { image in
+///         image.resizable().aspectRatio(contentMode: .fill)
+///     } placeholder: {
+///         Color.gray
+///     }
+///     .frame(height: 150)
+///     .clipped()
+/// } dropView: { item in
+///     RoundedRectangle(cornerRadius: 8)
+///         .stroke(Color.blue, lineWidth: 2)
+///         .background(Color.blue.opacity(0.1))
+/// } dropCompleted: {
+///     print("Grid items reordered")
+/// }
+/// ```
+public struct DragulaGridView<Card: View, DropView: View, Item: DragulaItem>: View {
+    
+    @State private var draggedItems: [Item] = []
+    
+    @Binding var items: [Item]
+    private let card: (Item) -> Card
+    private let dropView: ((Item) -> DropView)?
+    private let dropCompleted: () -> Void
+    
+    private let supportedUTTypes: [UTType] = []
+    
+    /// Creates a drag-and-drop grid view for items.
+    /// - Parameters:
+    ///   - items: A binding to an array of items.
+    ///   - card: View builder for each item.
+    ///   - dropView: View builder for the drop-over indicator.
+    ///   - dropCompleted: Called when a drop completes.
+    public init(
+        items: Binding<[Item]>,
+        @ViewBuilder card: @escaping (Item) -> Card,
+        @ViewBuilder dropView: @escaping (Item) -> DropView,
+        dropCompleted: @escaping () -> Void
+    ) {
+        self._items = items
+        self.card = card
+        self.dropView = dropView
+        self.dropCompleted = dropCompleted
+    }
+    
+    public var body: some View {
+        LazyVGrid(columns: [
+            GridItem(.flexible(), spacing: 8),
+            GridItem(.flexible(), spacing: 8)
+        ], spacing: 8) {
+            ForEach(items) { item in
+                #if os(watchOS)
+                card(item)
+                #else
+                card(item)
+                    .hidden(item.isDraggable)
+                    .overlay {
+                        if item.isDraggable {
+                            DraggableView(
+                                preview: {
+                                    card(item)
+                                }, dropView: {
+                                    dropView?(item)
+                                }, itemProvider: {
+                                    item.getItemProvider()
+                                }, onDragWillBegin: {
+                                    self.draggedItems.append(item)
+                                }, onDragWillEnd: {
+                                    self.draggedItems = []
+                                    self.dropCompleted()
+                                })
+                        }
+                    }
+                    .onDrop(
+                        of: supportedUTTypes,
+                        delegate: DragulaGridDropDelegate(
+                            item: item,
+                            items: $items,
+                            draggedItems: $draggedItems
+                        )
+                    )
+                #endif
+            }
+        }
+        .padding(.horizontal, 8)
+    }
+}
+
+/// A reusable SwiftUI view that supports sectioned drag-and-drop reordering of items in a grid layout.
+///
+/// Each section has a header and a grid of draggable items with a maximum of 2 items per row.
+///
+/// - Parameters:
+///   - Header: A view shown as the section header.
+///   - Card: A draggable item view.
+///   - DropView: A view to display during drag-over state.
+///   - Section: The section type conforming to `DragulaSection`.
+///
+/// - Example:
+/// ```swift
+/// DragulaSectionedGridView(sections: $sections) { section in
+///     Text(section.title)
+/// } card: { item in
+///     AsyncImage(url: item.url) { image in
+///         image.resizable().aspectRatio(contentMode: .fill)
+///     } placeholder: {
+///         Color.gray
+///     }
+///     .frame(height: 150)
+///     .clipped()
+/// } dropView: { item in
+///     RoundedRectangle(cornerRadius: 8)
+///         .stroke(Color.blue, lineWidth: 2)
+///         .background(Color.blue.opacity(0.1))
+/// } dropCompleted: {
+///     print("Sectioned grid drop completed")
+/// }
+/// ```
+public struct DragulaSectionedGridView<Header: View,
+                                             Card: View,
+                                             DropView: View,
+                                             Section: DragulaSection>: View {
+    
+    @Binding private var sections: [Section]
+    @Binding private var items: [Section.Item]
+    @State private var draggedItems: [Section.Item] = []
+    
+    private let header: (Section) -> Header
+    private let card: (Section.Item) -> Card
+    private let dropView: ((Section.Item) -> DropView)?
+    private let dropCompleted: () -> Void
+    
+    private let supportedUTTypes: [UTType] = []
+    
+    /// Creates a sectioned grid drag-and-drop view.
+    /// - Parameters:
+    ///   - sections: A binding to an array of sections.
+    ///   - header: View builder for each section header.
+    ///   - card: View builder for each item.
+    ///   - dropView: View builder for the drop-over indicator.
+    ///   - dropCompleted: Called when a drop completes.
+    public init(
+        sections: Binding<[Section]>,
+        @ViewBuilder header: @escaping (Section) -> Header,
+        @ViewBuilder card: @escaping (Section.Item) -> Card,
+        @ViewBuilder dropView: @escaping (Section.Item) -> DropView,
+        dropCompleted: @escaping () -> Void
+    ) {
+        self._sections = sections
+        self._items = .constant([])
+        self.header = header
+        self.card = card
+        self.dropView = dropView
+        self.dropCompleted = dropCompleted
+    }
+    
+    public init(
+        items: Binding<[Section.Item]>,
+        @ViewBuilder header: @escaping (Section) -> Header,
+        @ViewBuilder card: @escaping (Section.Item) -> Card,
+        @ViewBuilder dropView: @escaping (Section.Item) -> DropView,
+        dropCompleted: @escaping () -> Void
+    ) {
+        self._sections = .constant([])
+        self._items = items
+        self.header = header
+        self.card = card
+        self.dropView = dropView
+        self.dropCompleted = dropCompleted
+    }
+    
+    public var body: some View {
+        ForEach(sections) { section in
+            #if os(watchOS)
+            header(section)
+            #else
+            header(section)
+                .onDrop(
+                    of: supportedUTTypes,
+                    delegate: DragulaSectionDropDelegate(
+                        item: nil,
+                        sectionID: section.id,
+                        sections: $sections,
+                        draggedItems: $draggedItems
+                    )
+                )
+            #endif
+            
+            LazyVGrid(columns: [
+                GridItem(.flexible(), spacing: 8),
+                GridItem(.flexible(), spacing: 8)
+            ], spacing: 8) {
+                ForEach(section.items) { item in
+                    #if os(watchOS)
+                    card(item)
+                    #else
+                    card(item)
+                        .hidden(item.isDraggable)
+                        .overlay {
+                            if item.isDraggable {
+                                DraggableView(
+                                    preview: {
+                                        card(item)
+                                    }, dropView: {
+                                        dropView?(item)
+                                    }, itemProvider: {
+                                        item.getItemProvider()
+                                    }, onDragWillBegin: {
+                                        self.draggedItems.append(item)
+                                    }, onDragWillEnd: {
+                                        self.draggedItems = []
+                                        self.dropCompleted()
+                                    })
+                            }
+                        }
+                        .onDrop(
+                            of: supportedUTTypes,
+                            delegate: DragulaSectionDropDelegate(
+                                item: item,
+                                sectionID: section.id,
+                                sections: $sections,
+                                draggedItems: $draggedItems
+                            )
+                        )
+                    #endif
+                }
+            }
+            .padding(.horizontal, 8)
+        }
+    }
+}
+
 // MARK: FILEPRIVATE STUFF, NONE OF YOUR BUSINESS
 
 #if !os(watchOS)
@@ -311,7 +554,7 @@ fileprivate struct DragulaDropDelegate<Item: DragulaItem>: DropDelegate {
         var didPerformAnyChanges: Bool = false
         
         withAnimation(animation) {
-            // Remove dragged items from their original sections
+            // Remove dragged items from their original positions
             for dragged in draggedItems {
                 if let fromIndex = index(of: dragged),
                    let toIndex = index(of: item) {
@@ -462,6 +705,76 @@ fileprivate struct DragulaSectionDropDelegate<Section: DragulaSection>: DropDele
         }
         
         return true
+    }
+}
+
+// MARK: - Grid Drop Delegate
+fileprivate struct DragulaGridDropDelegate<Item: DragulaItem>: DropDelegate {
+    
+    private let generator = UIImpactFeedbackGenerator(style: .rigid)
+    
+    private let item: Item
+    @Binding private var items: [Item]
+    @Binding private var draggedItems: [Item]
+    
+    private let animation: Animation = .spring
+    
+    init(
+        item: Item,
+        items: Binding<[Item]>,
+        draggedItems: Binding<[Item]>
+    ) {
+        self.item = item
+        self._items = items
+        self._draggedItems = draggedItems
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        !draggedItems.isEmpty
+    }
+    
+    private func index(of item: Item) -> Int? {
+        items.firstIndex(where: { $0.id == item.id })
+    }
+    
+    func dropEntered(info: DropInfo) {
+        guard !draggedItems.isEmpty else {
+            return
+        }
+
+        // Prevent inserting on top of any dragged item
+        guard draggedItems.allSatisfy({ $0.id != item.id }) else {
+            return
+        }
+        
+        var didPerformAnyChanges: Bool = false
+        
+        withAnimation(animation) {
+            // Remove dragged items from their original positions
+            for dragged in draggedItems {
+                if let fromIndex = index(of: dragged),
+                   let toIndex = index(of: item) {
+                    didPerformAnyChanges = true
+                    items.move(
+                        fromOffsets: IndexSet(integer: fromIndex),
+                        toOffset: toIndex > fromIndex ? toIndex + 1 : toIndex
+                    )
+                }
+            }
+        }
+        
+        if didPerformAnyChanges {
+            playHaptic()
+        }
+    }
+    
+    func playHaptic() {
+        generator.prepare()
+        generator.impactOccurred()
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .cancel)
     }
 }
 #endif

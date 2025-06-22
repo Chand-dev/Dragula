@@ -136,6 +136,68 @@ struct ContentView: View {
             .tabItem {
                 Label("Horizontal (No Sections)", systemImage: "distribute.horizontal.fill")
             }
+            
+            // grid view with 2 items per row
+            ScrollView {
+                DragulaGridView(items: $sections[0].items) { item in
+                    VStack {
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(item.color)
+                            .frame(height: 120)
+                        Text(item.title)
+                            .font(.caption)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 4)
+                } dropView: { item in
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(item.color, lineWidth: 2)
+                        .background(item.color.opacity(0.1))
+                        .frame(height: 120)
+                } dropCompleted: {
+                    // save the new order of items to the db
+                }
+                .environment(\.dragPreviewCornerRadius, 12)
+                .padding(.vertical)
+            }
+            .tabItem {
+                Label("Grid (2 per row)", systemImage: "square.grid.2x2.fill")
+            }
+            
+            // sectioned grid view
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    DragulaSectionedGridView(sections: $sections) { section in
+                        SectionView(section: section)
+                    } card: { item in
+                        VStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(item.color)
+                                .frame(height: 100)
+                            Text(item.title)
+                                .font(.caption)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 4)
+                    } dropView: { item in
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(item.color, lineWidth: 2)
+                            .background(item.color.opacity(0.1))
+                            .frame(height: 100)
+                    } dropCompleted: {
+                        // save the new order of sections and its items to the db
+                    }
+                    .environment(\.dragPreviewCornerRadius, 12)
+                }
+                .padding(.vertical)
+            }
+            .tabItem {
+                Label("Sectioned Grid", systemImage: "rectangle.grid.2x2.fill")
+            }
         }
     }
 }
